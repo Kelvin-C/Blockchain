@@ -1,5 +1,7 @@
 package blockchain;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
@@ -16,14 +18,17 @@ class Blockchain {
      */
     private final String FIRST_BLOCK_PREV_HASH = "0";
 
-    /** The number of zeros at the start of block hashes for the next new block hash */
-    private volatile int nextHashPrefixZeroCount = 0;
-
     /**
      * The number of seconds each block should be calculated.
      * We change the hash calculation difficulty to match this.
      */
-    private final int blockCalculationSpeedSeconds = 2;
+    private final int BLOCK_CALCULATION_SPEED_SECONDS = 2;
+
+    /** The timezone offset of this machine. */
+    private final ZoneOffset timezone = ZoneOffset.UTC;
+
+    /** The block data of the next block */
+    private volatile BlockData nextBlockData = new BlockData(FIRST_BLOCK_ID, FIRST_BLOCK_PREV_HASH, 0);
 
     /**
      * Stores the time when the previous block was created.
@@ -31,35 +36,54 @@ class Blockchain {
      */
     private LocalDateTime prevBlockCreatedWhen = LocalDateTime.now();
 
-    /** The timezone offset of this machine. */
-    private final ZoneOffset timezone = ZoneOffset.UTC;
-
     /** All the blocks in this blockchain */
     private final List<ValidatedBlock> blocks = new ArrayList<>();
 
     /** Generates a block hash using the given values */
     public static String generateBlockHash(String prevBlockHash, long nonce) {
-        return BlockchainUtil.applySha256(String.format("%s%s", prevBlockHash, nonce));
+        return applySha256(String.format("%s%s", prevBlockHash, nonce));
     }
 
-    /** Get the block data of the next block. */
-    public BlockData getNextBlockData() {
-        synchronized (this) {
-            ValidatedBlock latestBlock = blocks.size() == 0 ? null : blocks.get(blocks.size() - 1);
-            long id = latestBlock == null ? FIRST_BLOCK_ID : latestBlock.id + 1;
-            String prevHash = latestBlock == null ? FIRST_BLOCK_PREV_HASH : latestBlock.hash;
-            return new BlockData(id, prevHash, nextHashPrefixZeroCount);
-        }
-    }
-
-    /** Checks the hash to ensure its prefix starts with zeros. */
-    private boolean blockIsValid(MinerBlock block) {
-        // Get the prefix and check all prefix characters are zeros.
+    /** Check whether the hash prefix matches the required zero count. */
+    public static boolean blockHashMatchesPrefixZeroCount(MinerBlock block) {
         String prefix = block.hash.substring(0, block.hashPrefixZeroCount);
         for (char c : prefix.toCharArray()) {
             if (c != '0') {
                 return false;
             }
+        }
+        return true;
+    }
+
+    /* Applies Sha256 to a string and returns a hash. */
+    private static String applySha256(String input){
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            /* Applies sha256 to our input */
+            byte[] hash = digest.digest(input.getBytes(StandardCharsets.UTF_8));
+            StringBuilder hexString = new StringBuilder();
+            for (byte elem: hash) {
+                String hex = Integer.toHexString(0xff & elem);
+                if(hex.length() == 1) hexString.append('0');
+                hexString.append(hex);
+            }
+            return hexString.toString();
+        }
+        catch(Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    /** Get the block data of the next block. */
+    public BlockData getNextBlockData() {
+        return nextBlockData;
+    }
+
+    /** Ensures the block is valid by ensuring all of its data and calculations match the blockchain. */
+    private boolean blockIsValid(MinerBlock block) {
+        // Ensure the hash prefix starts with the required zeros
+        if (!blockHashMatchesPrefixZeroCount(block)) {
+            return false;
         }
 
         // Get the hash of the previous block of that block
@@ -90,13 +114,10 @@ class Blockchain {
      * Returns a boolean stating whether the addition was successful or not.
      */
     public boolean tryAddBlock(MinerBlock block) {
-        if(!canAddNewBlock()) {
-            return false;
-        }
-
         synchronized (this) {
-            // Get the block info of the new block that we should add
-            BlockData nextBlockData = getNextBlockData();
+            if(!canAddNewBlock()) {
+                return false;
+            }
 
             // Check that the block info are the same as the one we need
             if (!block.equalBlockData(nextBlockData)) {
@@ -117,12 +138,16 @@ class Blockchain {
             blocks.add(ValidatedBlock.fromMinerBlock(block, timestamp, calculationTime));
             prevBlockCreatedWhen = now;
 
-            // Change the next block's zero prefix count based on calculation speed.
-            if (calculationTime < blockCalculationSpeedSeconds - 1) {
-                nextHashPrefixZeroCount++;
-            } else if (calculationTime > blockCalculationSpeedSeconds + 1 && nextHashPrefixZeroCount > 0) {
-                nextHashPrefixZeroCount--;
+            // Set up the block data for the next block
+            int nextHashPrefixZeroCount;
+            if (calculationTime < BLOCK_CALCULATION_SPEED_SECONDS - 1) {
+                nextHashPrefixZeroCount = block.hashPrefixZeroCount + 1;
+            } else if (calculationTime > BLOCK_CALCULATION_SPEED_SECONDS + 1 && block.hashPrefixZeroCount  > 0) {
+                nextHashPrefixZeroCount = block.hashPrefixZeroCount - 1;
+            } else {
+                nextHashPrefixZeroCount = block.hashPrefixZeroCount;
             }
+            nextBlockData = new BlockData(block.id + 1, block.hash, nextHashPrefixZeroCount);
 
             return true;
         }
@@ -140,7 +165,7 @@ class Blockchain {
             // Get the block and the next block's hash prefix zero count
             ValidatedBlock block = blocks.get(i);
             int blockNextHashPrefixZeroCount = i == blocks.size() - 1
-                    ? nextHashPrefixZeroCount
+                    ? nextBlockData.hashPrefixZeroCount
                     : blocks.get(i + 1).hashPrefixZeroCount;
 
             builder.append(block.toString());
