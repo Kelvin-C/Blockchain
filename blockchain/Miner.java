@@ -28,8 +28,15 @@ class Miner implements Runnable {
                 nonce = 0;
             }
 
+            // Only mine if there are messages since that is the whole point of a blockchain.
+            // Usually, the miner would not get any incentive to mine a block with nothing in it
+            // because the whole point of mining is the making the inner data (i.e. messages) more secure
+            if (blockData.messages.isEmpty()) {
+                continue;
+            }
+
             // Calculate the hash and the miner block
-            String hash = Blockchain.generateBlockHash(blockData.prevBlockHash, nonce);
+            String hash = Blockchain.generateBlockHash(blockData.prevBlockHash, blockData.messages, nonce);
             MinerBlock block = MinerBlock.FromBlockData(blockData, id, nonce, hash);
 
             // Add the block if the hash matches the zero count requirement

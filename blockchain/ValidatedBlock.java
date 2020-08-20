@@ -1,5 +1,7 @@
 package blockchain;
 
+import java.util.List;
+
 /** A valid blockchain block that has been validated based on the block info */
 class ValidatedBlock extends MinerBlock {
 
@@ -10,10 +12,10 @@ class ValidatedBlock extends MinerBlock {
     public final long calculationTimeSeconds;
 
     ValidatedBlock(
-           long id, String prevBlockHash, int hashPrefixZeroCount, long minerId,
-           long nonce, String hash, long timestamp, long calculationTimeSeconds
+            long id, String prevBlockHash, int hashPrefixZeroCount, List<Message> messages, long minerId,
+            long nonce, String hash, long timestamp, long calculationTimeSeconds
     ) {
-        super(id, prevBlockHash, hashPrefixZeroCount, minerId, nonce, hash);
+        super(id, prevBlockHash, hashPrefixZeroCount, messages, minerId, nonce, hash);
         this.timestamp = timestamp;
         this.calculationTimeSeconds = calculationTimeSeconds;
     }
@@ -21,7 +23,7 @@ class ValidatedBlock extends MinerBlock {
     /** Creates a validated block with a miner block */
     public static ValidatedBlock fromMinerBlock(MinerBlock block, long timestamp, long calculationTimeSeconds) {
         return new ValidatedBlock(
-                block.id, block.prevBlockHash, block.hashPrefixZeroCount, block.minerId,
+                block.id, block.prevBlockHash, block.hashPrefixZeroCount, block.messages, block.minerId,
                 block.nonce, block.hash, timestamp, calculationTimeSeconds
         );
     }
@@ -35,11 +37,18 @@ class ValidatedBlock extends MinerBlock {
             formattedLine("Created by miner # %s", minerId) +
             formattedLine("Id: %s", id) +
             formattedLine("Timestamp: %s", timestamp) +
-            formattedLine("Magic number: %s",nonce) +
+            formattedLine("Magic number: %s", nonce) +
             formattedLine("Hash of the previous block:") +
             formattedLine(prevBlockHash) +
             formattedLine("Hash of the block:") +
             formattedLine(hash) +
+            formattedLine("Block data:%s", messages.isEmpty() ? " no messages" : "") +
+            (messages.isEmpty()
+                    ? ""
+                    : messages.stream()
+                        .map(m -> formattedLine("%s: %s", UserManager.getUser(m.userId).name, m.value))
+                        .reduce("", (result, message) -> result + message)
+            ) +
             formattedLine("Block was generating for %s seconds", calculationTimeSeconds);
     }
 
