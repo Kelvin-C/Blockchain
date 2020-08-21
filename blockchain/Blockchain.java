@@ -2,14 +2,13 @@ package blockchain;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Predicate;
 
-class Blockchain {
+abstract class Blockchain<T extends RecordValue> {
 
     /** The ID of the very first block */
     private final long FIRST_BLOCK_ID = 1;
@@ -22,43 +21,53 @@ class Blockchain {
 
     /**
      * The number of seconds each block should be calculated.
-     * We change the hash calculation difficulty to match this.
+     * We change this to change the hashing difficulty
      */
-    private final int BLOCK_CALCULATION_SPEED_SECONDS = 2;
+    private final int blockCalculationSpeedMs;
 
-    /** The timezone offset of this machine. */
-    private final ZoneOffset TIMEZONE = ZoneOffset.UTC;
+    /**
+     * This blockchain is made to have a particular block calculation speed, plus-minus this value.
+     */
+    private final double blockCalculationSpeedUncertainty;
 
     /** The lock to be used when accessing message or block data */
     private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
 
     /** The block data of the next block */
-    private volatile BlockData nextBlockData = new BlockData(FIRST_BLOCK_ID, FIRST_BLOCK_PREV_HASH, 0, List.of());
+    protected volatile BlockData<T> nextBlockData = new BlockData<>(
+            FIRST_BLOCK_ID, FIRST_BLOCK_PREV_HASH,
+            0, List.of()
+    );
 
     /** The ID of the next message */
-    private volatile long nextMessageId = 1;
+    private volatile long nextRecordId = 1;
 
     /**
      * Stores the time when the previous block was created.
      * If this chain contains no blocks, then this is when the chain was created.
      */
-    private LocalDateTime prevBlockCreatedWhen = LocalDateTime.now();
+    private Instant prevBlockCreatedWhen = Instant.now();
 
     /** All the blocks in this blockchain */
-    private final List<ValidatedBlock> blocks = new ArrayList<>();
+    protected final List<ValidatedBlock<T>> blocks = new ArrayList<>();
+
+    protected Blockchain(int blockCalculationSpeedMs) {
+        this.blockCalculationSpeedMs = blockCalculationSpeedMs;
+        this.blockCalculationSpeedUncertainty = blockCalculationSpeedMs * 0.1;
+    }
 
     /** Generates a block hash using the given values */
-    public static String generateBlockHash(String prevBlockHash, List<Message> messages, long nonce) {
+    public static <T extends RecordValue> String generateBlockHash(String prevBlockHash, List<Record<T>> messages, long nonce) {
         return applySha256(String.format(
             "%s%s%s",
             prevBlockHash,
-            messages.stream().map(m -> m.value).reduce("", (result, message) -> result + message),
+            messages.stream().map(m -> m.value.toString()).reduce("", (result, message) -> result + message),
             nonce
         ));
     }
 
     /** Check whether the hash prefix matches the required zero count. */
-    public static boolean blockHashMatchesPrefixZeroCount(MinerBlock block) {
+    public static boolean blockHashMatchesPrefixZeroCount(HashedBlock<?> block) {
         String prefix = block.hash.substring(0, block.hashPrefixZeroCount);
         for (char c : prefix.toCharArray()) {
             if (c != '0') {
@@ -87,41 +96,47 @@ class Blockchain {
         }
     }
 
-    /** Get the block data of the next block. */
-    public BlockData getNextBlockData() {
+    /** Adds a new record to the next block */
+    public boolean tryAddRecord(Record<T> record) {
         try (var ignored = LockHandler.ReadMode(lock)) {
-            return nextBlockData;
-        }
-    }
-
-    /** Adds a new message to the next block */
-    public boolean tryAddMessage(Message message) {
-        try (var ignored = LockHandler.ReadMode(lock)) {
-            if (message.id != nextMessageId) return false;
+            if (record.id != nextRecordId || !canAddRecordValue(record.value)) return false;
         }
 
         try (var ignored = LockHandler.WriteMode(lock)) {
-            if (message.id != nextMessageId) return false;
+            if (record.id != nextRecordId || !canAddRecordValue(record.value)) return false;
 
-            nextBlockData = nextBlockData.WithNewMessage(message);
-            nextMessageId++;
+            nextBlockData = nextBlockData.WithNewRecord(record);
+            nextRecordId++;
             return true;
         }
     }
 
+    /** A check stating whether this record can be added. This check is performed within locks. */
+    protected abstract boolean canAddRecordValue(T recordValue);
+
     /** Retrieves the ID of the next message */
-    public long getNextMessageId() {
+    public long getNextRecordId() {
         try (var ignored = LockHandler.ReadMode(lock)) {
-            return nextMessageId;
+            return nextRecordId;
         }
     }
+
+    /** Get the block data of the next block. */
+    public MinerBlock<T> getNextBlockData(long minerUserId) {
+        try (var ignored = LockHandler.ReadMode(lock)) {
+            return MinerBlock.fromBlockData(nextBlockData, minerUserId, getMinerReward(minerUserId));
+        }
+    }
+
+    /** Gets a reward for the miner if they manage to mine a block. This is called within a read lock. */
+    protected abstract T getMinerReward(long minerUserId);
 
     /**
      * Attempts to add the hash to the block chain.
      * Returns a boolean stating whether the addition was successful or not.
      */
-    public boolean tryAddBlock(MinerBlock block) {
-        Predicate<MinerBlock> checkBlockValidity = innerBlock -> {
+    public boolean tryAddBlock(HashedBlock<T> block) {
+        Predicate<HashedBlock<T>> checkBlockValidity = innerBlock -> {
             // Check if this blockchain can add any more blocks
             if (!canAddNewBlock()) {
                 return false;
@@ -151,33 +166,35 @@ class Blockchain {
 
             // All the checks are done. Block is good.
             // Calculate the time it took to calculate the hash.
-            LocalDateTime now = LocalDateTime.now();
-            long timestamp = now.toEpochSecond(TIMEZONE);
-            long calculationTime = timestamp - prevBlockCreatedWhen.toEpochSecond(TIMEZONE);
+            Instant now = Instant.now();
+            long timestamp = now.toEpochMilli();
+            long calculationTimeMs = timestamp - prevBlockCreatedWhen.toEpochMilli();
 
             // Add the block
-            blocks.add(ValidatedBlock.fromMinerBlock(block, timestamp, calculationTime));
+            blocks.add(ValidatedBlock.fromMinerBlock(block, timestamp, calculationTimeMs));
             prevBlockCreatedWhen = now;
 
             // Set up the block data for the next block
             int nextHashPrefixZeroCount;
-            if (calculationTime < BLOCK_CALCULATION_SPEED_SECONDS - 1) {
+            if (calculationTimeMs < blockCalculationSpeedMs - blockCalculationSpeedUncertainty) {
                 nextHashPrefixZeroCount = block.hashPrefixZeroCount + 1;
-            } else if (calculationTime > BLOCK_CALCULATION_SPEED_SECONDS + 1 && block.hashPrefixZeroCount > 0) {
+            } else if (calculationTimeMs > blockCalculationSpeedMs + blockCalculationSpeedUncertainty
+                    && block.hashPrefixZeroCount > 0
+            ) {
                 nextHashPrefixZeroCount = block.hashPrefixZeroCount - 1;
             } else {
                 nextHashPrefixZeroCount = block.hashPrefixZeroCount;
             }
-            nextBlockData = new BlockData(block.id + 1, block.hash, nextHashPrefixZeroCount, List.of());
+            nextBlockData = new BlockData<T>(block.id + 1, block.hash, nextHashPrefixZeroCount, List.of());
 
             return true;
         }
     }
 
     /** Ensures the block is valid by ensuring all of its data and calculations match the blockchain. */
-    private boolean blockIsValid(MinerBlock block) {
+    private boolean blockIsValid(HashedBlock<T> block) {
         // Check every message in the block has valid signatures
-        if (!block.messages.stream().allMatch(Message::hasValidSignature)) {
+        if (!block.records.stream().allMatch(Record::hasValidSignature)) {
             return false;
         }
 
@@ -189,7 +206,7 @@ class Blockchain {
         // Get the hash of the previous block of that block
         // No hash will be found if this block is the first block
         String prevHash = null;
-        for (ValidatedBlock prevBlock : blocks) {
+        for (ValidatedBlock<T> prevBlock : blocks) {
             if (prevBlock.id == block.id - 1) {
                 prevHash = prevBlock.hash;
             }
@@ -203,7 +220,7 @@ class Blockchain {
         }
 
         // Ensure the hash calculation was correct
-        if (!block.hash.equals(generateBlockHash(block.prevBlockHash, block.messages, block.nonce))) {
+        if (!block.hash.equals(generateBlockHash(block.prevBlockHash, block.records, block.nonce))) {
             return false;
         }
 
@@ -214,7 +231,7 @@ class Blockchain {
     public boolean canAddNewBlock() {
         // Note that a lock is not needed here because once this is true,
         // it is always true because the block size does not decrease
-        return blocks.size() < 5;
+        return blocks.size() < 15;
     }
 
     /** Checks whether all the blocks are valid */
@@ -230,7 +247,7 @@ class Blockchain {
             StringBuilder builder = new StringBuilder();
             for (int i = 0; i < blocks.size(); i++) {
                 // Get the block and the next block's hash prefix zero count
-                ValidatedBlock block = blocks.get(i);
+                ValidatedBlock<T> block = blocks.get(i);
 
                 int blockNextHashPrefixZeroCount = i == blocks.size() - 1
                         ? nextBlockData.hashPrefixZeroCount

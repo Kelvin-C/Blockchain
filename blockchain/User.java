@@ -26,7 +26,7 @@ class User {
     }
 
     /** Generates a signature for the given data */
-    public byte[] getSignature(String messageValue, long messageId) {
-        return Encryption.sign(Message.getSignatureData(messageValue, messageId), privateKey);
+    public byte[] getSignature(RecordValue recordValue, long messageId) {
+        return Encryption.sign(Record.getSignatureData(recordValue, messageId), privateKey);
     }
 }

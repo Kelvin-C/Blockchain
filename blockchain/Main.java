@@ -6,17 +6,21 @@ import java.util.concurrent.TimeUnit;
 
 public class Main {
     public static void main(String[] args) throws InterruptedException {
-        Blockchain blockchain = new Blockchain();
+        CurrencyBlockchain blockchain = new CurrencyBlockchain(100);
 
         // Create the miners and the message creators
-        int messageCreatorCount = 3;
-        int blockCount = 5;
-        ExecutorService executorService = Executors.newFixedThreadPool(blockCount + messageCreatorCount);
-        for (int minerId = 1; minerId <= blockCount; minerId++) {
-            executorService.submit(new Miner(minerId, blockchain, blockCount));
+        int recordCreatorCount = 3;
+        int minerCount = 15;
+        ExecutorService executorService = Executors.newFixedThreadPool(minerCount + recordCreatorCount);
+        for (int i = 0; i < recordCreatorCount; i++) {
+            executorService.submit(new RecordCreator<>(
+                    UserManager.generateNewUser(),
+                    blockchain,
+                    new CurrencyTransferGenerator()
+            ));
         }
-        for (int i = 0; i < messageCreatorCount; i++) {
-            executorService.submit(new MessageCreator(UserManager.generateNewUser(), blockchain));
+        for (int startingNonce = 1; startingNonce <= minerCount; startingNonce++) {
+            executorService.submit(new Miner<>(UserManager.generateNewUser(), blockchain, startingNonce, minerCount));
         }
 
         // Wait for all the miners and message creators to finish
