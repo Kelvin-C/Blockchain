@@ -1,4 +1,6 @@
-package blockchain;
+import blockchain.*;
+import dataentities.block.record.RecordCreator;
+import functionality.random.CurrencyTransferGenerator;
 
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -24,6 +26,7 @@ public class Main {
         }
 
         // Wait for all the miners and message creators to finish
+        executorService.shutdown();
         executorService.awaitTermination(10, TimeUnit.SECONDS);
 
         if (!blockchain.blocksAreValid()) {

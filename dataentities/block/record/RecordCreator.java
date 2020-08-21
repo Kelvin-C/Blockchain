@@ -1,4 +1,8 @@
-package blockchain;
+package dataentities.block.record;
+
+import blockchain.Blockchain;
+import dataentities.user.User;
+import functionality.random.RandomGenerator;
 
 import java.util.concurrent.TimeUnit;
 

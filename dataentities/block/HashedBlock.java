@@ -1,9 +1,12 @@
-package blockchain;
+package dataentities.block;
+
+import dataentities.block.record.Record;
+import dataentities.block.record.RecordValue;
 
 import java.util.List;
 
 /** The blockchain block with a calculated hash value */
-class HashedBlock<T extends RecordValue> extends MinerBlock<T> {
+public class HashedBlock<T extends RecordValue> extends MinerBlock<T> {
 
     /** The magic number used only for generating a particular hash */
     public final long nonce;

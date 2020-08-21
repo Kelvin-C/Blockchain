@@ -1,9 +1,12 @@
-package blockchain;
+package functionality.random;
+
+import dataentities.block.record.CurrencyTransfer;
+import blockchain.UserManager;
 
 import java.util.Random;
 
 /** An object which can automatically generate new record values */
-abstract class RandomGenerator<T> {
+public abstract class RandomGenerator<T> {
     /** The random generator to be use */
     final Random random = new Random();
 
@@ -25,21 +28,4 @@ abstract class RandomGenerator<T> {
 
     /** Returns new record value */
     public abstract T generate();
-}
-
-/** Automatically generates currency transfers */
-class CurrencyTransferGenerator extends RandomGenerator<CurrencyTransfer> {
-
-    /** The upper limit to each transfer */
-    static final int MAX_AMOUNT_PER_TRANSFER = 100;
-
-    @Override
-    public CurrencyTransfer generate() {
-        int userCount = UserManager.getUserCountExcludingSystem();
-        long fromUserId = generateInt(UserManager.minUserId, userCount + UserManager.minUserId);
-        int amount = generateInt(1, MAX_AMOUNT_PER_TRANSFER);
-        long toUserId = generateInt(UserManager.minUserId, userCount + UserManager.minUserId);
-
-        return new CurrencyTransfer(fromUserId, amount, toUserId);
-    }
 }

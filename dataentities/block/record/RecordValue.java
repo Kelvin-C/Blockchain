@@ -1,7 +1,7 @@
-package blockchain;
+package dataentities.block.record;
 
 /** Wraps the main data that is stored in a blockchain record */
-abstract class RecordValue {
+public abstract class RecordValue {
 
     @Override
     public abstract String toString();

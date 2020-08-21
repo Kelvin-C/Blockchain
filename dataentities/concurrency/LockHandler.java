@@ -1,10 +1,10 @@
-package blockchain;
+package dataentities.concurrency;
 
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /** Handles locks by allowing the lock to automatically unlock */
-class LockHandler implements AutoCloseable {
+public class LockHandler implements AutoCloseable {
 
     private final Lock lock;
 

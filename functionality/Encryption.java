@@ -1,8 +1,10 @@
-package blockchain;
+package functionality;
+
+import dataentities.exception.BlockchainException;
 
 import java.security.*;
 
-class Encryption {
+public class Encryption {
 
     final static int keyLength = 1024;
     final static String keyGeneratorAlgorithm = "RSA";

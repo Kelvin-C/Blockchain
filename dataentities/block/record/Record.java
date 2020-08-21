@@ -1,11 +1,13 @@
-package blockchain;
+package dataentities.block.record;
+
+import functionality.Encryption;
 
 import java.security.PublicKey;
 import java.util.Arrays;
 import java.util.Objects;
 
 /** Wraps information regarding a record in a blockchain */
-class Record<T extends RecordValue>  {
+public class Record<T extends RecordValue>  {
 
     /** The unique identifier */
     public final long id;

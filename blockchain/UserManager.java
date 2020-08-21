@@ -1,11 +1,15 @@
 package blockchain;
 
+import dataentities.concurrency.LockHandler;
+import dataentities.user.User;
+import functionality.Encryption;
+
 import java.security.KeyPair;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
-class UserManager {
+public class UserManager {
 
     /** The user of the system. This is not a user of any person. */
     public static final User SystemUser;

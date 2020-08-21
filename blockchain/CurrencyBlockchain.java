@@ -1,8 +1,11 @@
 package blockchain;
 
+import dataentities.block.record.CurrencyTransfer;
+import dataentities.block.record.CurrencyTransferReward;
+
 import java.util.stream.Stream;
 
-class CurrencyBlockchain extends Blockchain<CurrencyTransfer> {
+public class CurrencyBlockchain extends Blockchain<CurrencyTransfer> {
 
     /** The starting balance for each user */
     static final int STARTING_USER_BALANCE = 100;

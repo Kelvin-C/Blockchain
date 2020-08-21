@@ -1,5 +1,13 @@
 package blockchain;
 
+import dataentities.block.BlockData;
+import dataentities.block.HashedBlock;
+import dataentities.block.MinerBlock;
+import dataentities.block.ValidatedBlock;
+import dataentities.block.record.Record;
+import dataentities.block.record.RecordValue;
+import dataentities.concurrency.LockHandler;
+
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Instant;
@@ -8,7 +16,7 @@ import java.util.List;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Predicate;
 
-abstract class Blockchain<T extends RecordValue> {
+public abstract class Blockchain<T extends RecordValue> {
 
     /** The ID of the very first block */
     private final long FIRST_BLOCK_ID = 1;

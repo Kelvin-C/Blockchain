@@ -1,10 +1,14 @@
-package blockchain;
+package dataentities.user;
+
+import dataentities.block.record.Record;
+import dataentities.block.record.RecordValue;
+import functionality.Encryption;
 
 import java.security.KeyPair;
 import java.security.PrivateKey;
 import java.security.PublicKey;
 
-class User {
+public class User {
 
     /** The unique identifier of this user */
     public final long id;

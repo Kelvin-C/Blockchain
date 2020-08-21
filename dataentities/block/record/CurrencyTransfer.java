@@ -1,7 +1,10 @@
-package blockchain;
+package dataentities.block.record;
+
+import blockchain.UserManager;
+import dataentities.user.User;
 
 /** Wraps information on the transfer of currency */
-class CurrencyTransfer extends RecordValue {
+public class CurrencyTransfer extends RecordValue {
 
     public final long fromUserId;
     public final int amount;
@@ -31,16 +34,4 @@ class CurrencyTransfer extends RecordValue {
     }
 }
 
-/** The reward to the miner for mining a currency transfer block */
-class CurrencyTransferReward extends CurrencyTransfer {
 
-    public CurrencyTransferReward(long fromUserId, int amount, long toUserId) {
-        super(fromUserId, amount, toUserId);
-    }
-
-    @Override
-    public String toString() {
-        User toUser = UserManager.getUser(toUserId);
-        return String.format("%s gets %s VC", toUser.name, amount);
-    }
-}

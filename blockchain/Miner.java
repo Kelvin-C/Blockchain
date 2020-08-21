@@ -1,6 +1,12 @@
 package blockchain;
 
-class Miner<T extends RecordValue> implements Runnable {
+import blockchain.Blockchain;
+import dataentities.block.HashedBlock;
+import dataentities.block.MinerBlock;
+import dataentities.block.record.RecordValue;
+import dataentities.user.User;
+
+public class Miner<T extends RecordValue> implements Runnable {
     /** The ID of this block */
     private final User user;
 
